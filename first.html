@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Height Finder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #374151;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 18px;
+            font-size: 18px;
+            color: #111827;
+            min-height: 30px;
+            line-height: 1.5;
+        }
+
+        #summary {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Height Finder</h1>
+        <label for="nameInput">Enter a person's name:</label>
+        <div class="search-row">
+            <input id="nameInput" type="text" placeholder="e.g. Albert Einstein" />
+            <button type="button" onclick="showHeight()">Search</button>
+        </div>
+        <div id="result">Loading...</div>
+        <div id="summary"></div>
+    </div>
+
+    <script>
+        async function searchPersonHeight(name) {
+            const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}&language=en&format=json&origin=*`;
+            const searchResponse = await fetch(searchUrl);
+            const searchData = await searchResponse.json();
+            const matches = searchData.search || [];
+
+            if (!matches.length) {
+                return {
+                    found: false,
+                    message: `No person found for "${name}".`
+                };
+            }
+
+            const entity = matches[0];
+            const entityId = entity.id;
+            const claimsUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&props=claims&format=json&origin=*`;
+            const claimsResponse = await fetch(claimsUrl);
+            const claimsData = await claimsResponse.json();
+            const claims = claimsData.entities && claimsData.entities[entityId] ? claimsData.entities[entityId].claims : {};
+            const heightClaim = claims.P2048 && claims.P2048[0];
+
+            if (!heightClaim || !heightClaim.mainsnak || !heightClaim.mainsnak.datavalue) {
+                return {
+                    found: true,
+                    title: entity.label || entity.title,
+                    height: null,
+                    message: `No height found for "${name}" on Wikidata.`
+                };
+            }
+
+            const amount = heightClaim.mainsnak.datavalue.value.amount;
+            const meters = Number.parseFloat(amount) / 100;
+
+            return {
+                found: true,
+                title: entity.label || entity.title,
+                height: `${meters.toFixed(2)} m`
+            };
+        }
+
+        async function showHeight() {
+            const input = document.getElementById('nameInput');
+            const result = document.getElementById('result');
+            const summary = document.getElementById('summary');
+            const name = input.value.trim();
+
+            if (!name) {
+                result.textContent = 'Please enter a name.';
+                summary.textContent = '';
+                return;
+            }
+
+            result.textContent = 'Searching the internet...';
+            summary.textContent = '';
+
+            try {
+                const data = await searchPersonHeight(name);
+
+                if (!data.found) {
+                    result.textContent = data.message;
+                    return;
+                }
+
+                if (!data.height) {
+                    result.textContent = `No height found for ${name}.`;
+                    return;
+                }
+
+                result.textContent = `${data.title} is about ${data.height}.`;
+            } catch (error) {
+                result.textContent = 'Could not search the internet right now. Please try again.';
+            }
+        }
+
+        document.getElementById('nameInput').addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                showHeight();
+            }
+        });
+
+        document.getElementById('result').textContent = 'Type a name and press Search.';
+    </script>
+</body>
+</html>
